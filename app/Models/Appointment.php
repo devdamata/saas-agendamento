@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\QueryException;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -38,6 +39,15 @@ class Appointment extends Model
             'status' => AppointmentStatus::class,
             'price' => 'decimal:2',
         ];
+    }
+
+    /**
+     * Se o erro do banco veio da constraint appointments_no_overlap
+     * (SQLSTATE 23P01, violação de exclusion constraint).
+     */
+    public static function isOverlapViolation(QueryException $exception): bool
+    {
+        return $exception->getCode() === '23P01';
     }
 
     /**

@@ -230,6 +230,8 @@ Regras:
 - Tabelas filhas usam FK composta (tenant_id, x_id) para impedir referência entre salões.
 - Datas gravadas em UTC (timestamptz); converter para o fuso do salão só na exibição e na entrada. Models com timestamptz usam o trait `StoresDatesInAppTimezone`; em consultas (where) passe datas já com `->utc()`.
 - Cancelamento e remarcação até X horas antes, configurável por salão.
+  - Remarcar só pelo `RescheduleAppointment`: mesmas garantias contra conflito do agendamento, mantém o status e registra o horário anterior em appointment_events.description.
+- Clientes: `users` é global; o cadastro pelo salão passa pelo `RegisterClient` (reaproveita o telefone, não sobrescreve dados de outro salão). Telefone não é editável no painel.
 - Ao marcar um atendimento como concluído, a baixa de estoque é gerada pela ficha técnica (service_products) e a entrada no caixa é criada com o valor cobrado.
   - Concluir só pelo `CompleteAppointment` (o `ChangeAppointmentStatus` recusa "concluído"). Valor 0 = cortesia, sem lançamento no caixa. Índice único garante uma entrada de caixa por agendamento.
 

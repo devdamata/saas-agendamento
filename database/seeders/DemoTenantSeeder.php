@@ -2,9 +2,13 @@
 
 namespace Database\Seeders;
 
+use App\Actions\Appointments\BookAppointment;
+use App\Actions\Appointments\CompleteAppointment;
+use App\Actions\Clients\RegisterClient;
 use App\Enums\CashCategory;
 use App\Enums\PaymentMethod;
 use App\Enums\ProductUnit;
+use App\Models\Appointment;
 use App\Models\CashEntry;
 use App\Models\Membership;
 use App\Models\Product;
@@ -20,8 +24,9 @@ use Illuminate\Database\Seeder;
 /**
  * Salão de demonstração para desenvolvimento: http://demo.localhost:8000/painel,
  * com um administrador (admin@demo.test / password), dois profissionais,
- * jornada de terça a sábado, produtos com ficha técnica e um produto já
- * abaixo do estoque mínimo.
+ * jornada de terça a sábado, produtos com ficha técnica, um produto já
+ * abaixo do estoque mínimo e clientes com histórico (atendimentos
+ * concluídos pelo fluxo real, com baixa no estoque e entrada no caixa).
  */
 class DemoTenantSeeder extends Seeder
 {
@@ -38,7 +43,7 @@ class DemoTenantSeeder extends Seeder
             'email' => 'admin@demo.test',
         ]);
 
-        $tenantContext->run($tenant, function () use ($tenant, $admin) {
+        $tenantContext->run($tenant, function () use ($tenant, $admin, $tenantContext) {
             Membership::factory()->for($tenant)->for($admin)->admin()->create();
 
             $services = collect([
@@ -54,6 +59,7 @@ class DemoTenantSeeder extends Seeder
 
             foreach ($professionals as $name => $serviceNames) {
                 $professional = Professional::factory()->for($tenant)->create(['name' => $name]);
+                $professionals[$name] = $professional;
                 $professional->services()->attach($services->whereIn('name', $serviceNames)->pluck('id'));
 
                 foreach (range(2, 6) as $weekday) {
@@ -89,6 +95,27 @@ class DemoTenantSeeder extends Seeder
                     ]);
                 }
             }
+
+            $clients = collect([
+                ['Juliana Alves', '(11) 98888-0001'],
+                ['Patrícia Rocha', '(11) 98888-0002'],
+                ['Camila Nunes', '(11) 98888-0003'],
+            ])->map(fn (array $client) => app(RegisterClient::class)->handle($client[0], $client[1], whatsappOptIn: true));
+
+            $ana = $professionals['Ana Souza'];
+            $corte = $services->firstWhere('name', 'Corte feminino');
+            $today = $tenantContext->now()->startOfDay();
+
+            foreach ($clients as $index => $client) {
+                $pastVisit = Appointment::factory()->for($tenant)->for($client, 'client')->for($ana)->for($corte)
+                    ->at($today->subDays(3 + $index)->setTime(10, 0), $corte->duration_minutes, $corte->buffer_minutes)
+                    ->create(['price' => $corte->price]);
+
+                app(CompleteAppointment::class)->handle($pastVisit, PaymentMethod::Pix, completedBy: $admin);
+            }
+
+            $nextTuesday = $today->next('Tuesday')->setTime(14, 0);
+            app(BookAppointment::class)->handle($ana, $corte, $clients->first(), $nextTuesday, $admin);
 
             CashEntry::factory()->for($tenant)->expense(CashCategory::Rent)->create([
                 'amount' => '2500.00',

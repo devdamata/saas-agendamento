@@ -77,6 +77,7 @@ class CreateAppointmentTest extends TestCase
         [$professional, $service] = $this->professionalWithService();
         Appointment::factory()->for($professional)->at($this->at('10:00'))->create();
         $this->mock(ListAvailableSlots::class, function (MockInterface $mock) {
+            $mock->shouldReceive('isAvailable')->andReturn(true);
             $mock->shouldReceive('handle')->andReturn([$this->at('10:00')]);
         });
 

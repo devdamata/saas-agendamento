@@ -30,9 +30,10 @@ class ListAvailableSlots
 
     /**
      * @param  string  $date  Dia no fuso do salão, no formato Y-m-d.
+     * @param  Appointment|null  $ignoring  Agendamento que não conta como ocupado (o que está sendo remarcado).
      * @return list<CarbonImmutable> Inícios disponíveis, no fuso do salão, em ordem.
      */
-    public function handle(Professional $professional, Service $service, string $date): array
+    public function handle(Professional $professional, Service $service, string $date, ?Appointment $ignoring = null): array
     {
         if (! $professional->is_active || ! $service->is_active || ! $professional->offers($service)) {
             return [];
@@ -53,7 +54,7 @@ class ListAvailableSlots
             return [];
         }
 
-        $busyPeriods = $this->busyPeriods($professional, $day, $day->addDay());
+        $busyPeriods = $this->busyPeriods($professional, $day, $day->addDay(), $ignoring);
         $now = CarbonImmutable::now();
         $slots = [];
 
@@ -73,14 +74,26 @@ class ListAvailableSlots
     }
 
     /**
+     * Se o serviço pode começar nesse instante com o profissional.
+     */
+    public function isAvailable(Professional $professional, Service $service, CarbonImmutable $startsAt, ?Appointment $ignoring = null): bool
+    {
+        $date = $startsAt->setTimezone($this->tenantContext->get()->timezone)->toDateString();
+
+        return collect($this->handle($professional, $service, $date, $ignoring))
+            ->contains(fn (CarbonImmutable $slot): bool => $slot->equalTo($startsAt));
+    }
+
+    /**
      * Agendamentos ativos e folgas que tocam o período, como pares [início, fim].
      *
      * @return Collection<int, array{CarbonImmutable, CarbonImmutable}>
      */
-    private function busyPeriods(Professional $professional, CarbonImmutable $from, CarbonImmutable $until): Collection
+    private function busyPeriods(Professional $professional, CarbonImmutable $from, CarbonImmutable $until, ?Appointment $ignoring): Collection
     {
         $appointments = Appointment::occupying()
             ->whereBelongsTo($professional)
+            ->when($ignoring, fn ($query) => $query->whereKeyNot($ignoring->getKey()))
             ->where('starts_at', '<', $until->utc())
             ->where('blocked_until', '>', $from->utc())
             ->get(['starts_at', 'blocked_until'])

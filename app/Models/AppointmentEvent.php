@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Linha do histórico de status. Registros são só inseridos, nunca alterados.
  */
-#[Fillable(['appointment_id', 'from_status', 'to_status', 'user_id'])]
+#[Fillable(['appointment_id', 'from_status', 'to_status', 'user_id', 'description'])]
 class AppointmentEvent extends Model
 {
     /** @use HasFactory<AppointmentEventFactory> */

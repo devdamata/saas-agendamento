@@ -126,7 +126,7 @@ class BookAppointmentTest extends TestCase
         [$professional, $service] = $this->professionalWithService();
         Appointment::factory()->for($professional)->at($this->at('09:00'))->create();
         $this->mock(ListAvailableSlots::class, function (MockInterface $mock) {
-            $mock->shouldReceive('handle')->andReturn([$this->at('09:00')]);
+            $mock->shouldReceive('isAvailable')->andReturn(true);
         });
 
         $this->assertUnavailable(fn () => app(BookAppointment::class)->handle($professional, $service, User::factory()->create(), $this->at('09:00')));

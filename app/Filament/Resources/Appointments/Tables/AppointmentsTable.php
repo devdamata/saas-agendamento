@@ -4,9 +4,12 @@ namespace App\Filament\Resources\Appointments\Tables;
 
 use App\Actions\Appointments\ChangeAppointmentStatus;
 use App\Actions\Appointments\CompleteAppointment;
+use App\Actions\Appointments\RescheduleAppointment;
 use App\Enums\AppointmentStatus;
 use App\Enums\PaymentMethod;
+use App\Filament\Resources\Appointments\Schemas\AppointmentForm;
 use App\Models\Appointment;
+use App\Models\Professional;
 use App\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
@@ -15,6 +18,8 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -82,17 +87,76 @@ class AppointmentsTable
     }
 
     /**
-     * Ações de status (confirmar, concluir, falta, cancelar), usadas na
-     * agenda e na agenda de hoje da tela inicial.
+     * Ações do agendamento (confirmar, concluir, remarcar, falta, cancelar),
+     * usadas na agenda e na agenda de hoje da tela inicial.
      */
     public static function statusActions(): ActionGroup
     {
         return ActionGroup::make([
             self::statusAction('confirm', 'Confirmar', AppointmentStatus::Confirmed, Heroicon::OutlinedCheck),
             self::completeAction(),
+            self::rescheduleAction(),
             self::statusAction('noShow', 'Marcar falta', AppointmentStatus::NoShow, Heroicon::OutlinedUserMinus, requiresConfirmation: true),
             self::statusAction('cancel', 'Cancelar', AppointmentStatus::Cancelled, Heroicon::OutlinedXCircle, requiresConfirmation: true),
-        ])->label('Status')->button();
+        ])->label('Ações')->button();
+    }
+
+    /**
+     * Remarcar oferece só horários livres (ignorando o horário atual do
+     * próprio agendamento); a garantia contra conflito é do RescheduleAppointment.
+     */
+    private static function rescheduleAction(): Action
+    {
+        return Action::make('reschedule')
+            ->label('Remarcar')
+            ->icon(Heroicon::OutlinedArrowPath)
+            ->color('gray')
+            ->authorize('update')
+            ->visible(fn (Appointment $record): bool => in_array($record->status, [AppointmentStatus::Scheduled, AppointmentStatus::Confirmed], true))
+            ->modalHeading('Remarcar agendamento')
+            ->modalSubmitActionLabel('Remarcar')
+            ->fillForm(fn (Appointment $record): array => [
+                'professional_id' => $record->professional_id,
+                'date' => $record->starts_at->setTimezone(self::timezone())->toDateString(),
+            ])
+            ->schema(fn (Appointment $record): array => [
+                Select::make('professional_id')
+                    ->label('Profissional')
+                    ->options(AppointmentForm::professionalsFor($record->service_id))
+                    ->required()
+                    ->live()
+                    ->afterStateUpdated(fn (Set $set) => $set('starts_at', null)),
+                DatePicker::make('date')
+                    ->label('Dia')
+                    ->native(false)
+                    ->displayFormat('d/m/Y')
+                    ->minDate(AppointmentForm::today())
+                    ->required()
+                    ->live()
+                    ->afterStateUpdated(fn (Set $set) => $set('starts_at', null)),
+                Select::make('starts_at')
+                    ->label('Novo horário')
+                    ->options(fn (Get $get): array => AppointmentForm::slotOptions($get('professional_id'), $record->service_id, $get('date'), ignoring: $record))
+                    ->required()
+                    ->placeholder('Escolha o profissional e o dia')
+                    ->validationMessages(['in' => AppointmentForm::UNAVAILABLE_MESSAGE]),
+            ])
+            ->action(function (Appointment $record, array $data): void {
+                try {
+                    app(RescheduleAppointment::class)->handle(
+                        $record,
+                        CarbonImmutable::parse($data['starts_at']),
+                        Professional::find($data['professional_id']),
+                        auth()->user(),
+                    );
+                } catch (ValidationException $exception) {
+                    Notification::make()->title($exception->getMessage())->danger()->send();
+
+                    return;
+                }
+
+                Notification::make()->title('Agendamento remarcado.')->success()->send();
+            });
     }
 
     /**

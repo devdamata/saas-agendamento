@@ -2,9 +2,11 @@
 
 namespace App\Filament\Resources\Appointments\Schemas;
 
+use App\Actions\Appointments\BookAppointment;
 use App\Actions\Appointments\ListAvailableSlots;
+use App\Actions\Clients\RegisterClient;
 use App\Enums\MembershipRole;
-use App\Models\Membership;
+use App\Models\Appointment;
 use App\Models\Professional;
 use App\Models\Service;
 use App\Models\User;
@@ -24,7 +26,7 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class AppointmentForm
 {
-    public const UNAVAILABLE_MESSAGE = 'Esse horário não está disponível. Escolha outro horário.';
+    public const UNAVAILABLE_MESSAGE = BookAppointment::UNAVAILABLE_MESSAGE;
 
     public static function configure(Schema $schema): Schema
     {
@@ -118,23 +120,17 @@ class AppointmentForm
             ->all();
     }
 
-    /**
-     * Cadastra o cliente no salão. Se o telefone já existe (cliente de outro
-     * salão), reaproveita o usuário e só cria o vínculo.
-     */
     private static function createClient(string $name, string $phone): int
     {
-        $user = User::firstOrCreate(['phone' => User::normalizePhone($phone)], ['name' => $name]);
-
-        Membership::firstOrCreate(['user_id' => $user->id, 'role' => MembershipRole::Client]);
-
-        return $user->id;
+        return app(RegisterClient::class)->handle($name, $phone)->id;
     }
 
     /**
+     * Profissionais ativos que fazem o serviço.
+     *
      * @return array<int, string>
      */
-    private static function professionalsFor(mixed $serviceId): array
+    public static function professionalsFor(mixed $serviceId): array
     {
         if (blank($serviceId)) {
             return [];
@@ -148,9 +144,10 @@ class AppointmentForm
     }
 
     /**
+     * @param  Appointment|null  $ignoring  Agendamento que está sendo remarcado.
      * @return array<string, string> instante ISO 8601 (UTC) => "HH:MM" no fuso do salão
      */
-    private static function slotOptions(mixed $professionalId, mixed $serviceId, mixed $date): array
+    public static function slotOptions(mixed $professionalId, mixed $serviceId, mixed $date, ?Appointment $ignoring = null): array
     {
         $professional = blank($professionalId) ? null : Professional::find($professionalId);
         $service = blank($serviceId) ? null : Service::find($serviceId);
@@ -159,12 +156,12 @@ class AppointmentForm
             return [];
         }
 
-        return collect(app(ListAvailableSlots::class)->handle($professional, $service, CarbonImmutable::parse($date)->toDateString()))
+        return collect(app(ListAvailableSlots::class)->handle($professional, $service, CarbonImmutable::parse($date)->toDateString(), $ignoring))
             ->mapWithKeys(fn (CarbonImmutable $slot): array => [$slot->utc()->toIso8601String() => $slot->format('H:i')])
             ->all();
     }
 
-    private static function today(): string
+    public static function today(): string
     {
         return app(TenantContext::class)->now()->toDateString();
     }

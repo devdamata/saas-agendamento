@@ -9,7 +9,6 @@ use App\Models\Membership;
 use App\Models\Professional;
 use App\Models\Service;
 use App\Models\User;
-use App\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use Illuminate\Database\QueryException;
@@ -25,15 +24,9 @@ use Illuminate\Validation\ValidationException;
  */
 class BookAppointment
 {
-    /**
-     * SQLSTATE de violação de exclusion constraint no Postgres.
-     */
-    private const EXCLUSION_VIOLATION = '23P01';
+    public const UNAVAILABLE_MESSAGE = 'Esse horário não está disponível. Escolha outro horário.';
 
-    public function __construct(
-        private ListAvailableSlots $listAvailableSlots,
-        private TenantContext $tenantContext,
-    ) {}
+    public function __construct(private ListAvailableSlots $listAvailableSlots) {}
 
     /**
      * @throws ValidationException quando o horário não está disponível.
@@ -51,7 +44,7 @@ class BookAppointment
             $professional = Professional::whereKey($professional->getKey())->lockForUpdate()->first();
             $service = Service::whereKey($service->getKey())->first();
 
-            if ($professional === null || $service === null || ! $this->isAvailable($professional, $service, $startsAt)) {
+            if ($professional === null || $service === null || ! $this->listAvailableSlots->isAvailable($professional, $service, $startsAt)) {
                 throw $this->unavailable();
             }
 
@@ -68,7 +61,7 @@ class BookAppointment
                     'created_by' => $bookedBy?->getKey(),
                 ]);
             } catch (QueryException $exception) {
-                throw $exception->getCode() === self::EXCLUSION_VIOLATION ? $this->unavailable() : $exception;
+                throw Appointment::isOverlapViolation($exception) ? $this->unavailable() : $exception;
             }
 
             $appointment->events()->create([
@@ -86,18 +79,8 @@ class BookAppointment
         });
     }
 
-    private function isAvailable(Professional $professional, Service $service, CarbonImmutable $startsAt): bool
-    {
-        $date = $startsAt->setTimezone($this->tenantContext->get()->timezone)->toDateString();
-
-        return collect($this->listAvailableSlots->handle($professional, $service, $date))
-            ->contains(fn (CarbonImmutable $slot): bool => $slot->equalTo($startsAt));
-    }
-
     private function unavailable(): ValidationException
     {
-        return ValidationException::withMessages([
-            'starts_at' => 'Esse horário não está disponível. Escolha outro horário.',
-        ]);
+        return ValidationException::withMessages(['starts_at' => self::UNAVAILABLE_MESSAGE]);
     }
 }

@@ -38,6 +38,18 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * Registra quando a autorização de WhatsApp (LGPD) foi dada ou retirada.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $user): void {
+            if ($user->isDirty('whatsapp_opt_in')) {
+                $user->whatsapp_opt_in_at = $user->whatsapp_opt_in ? now() : null;
+            }
+        });
+    }
+
+    /**
      * Normaliza o telefone para E.164. Sem "+" na frente, números com 10 ou
      * 11 dígitos são tratados como brasileiros (DDD + número).
      */
@@ -70,6 +82,16 @@ class User extends Authenticatable implements FilamentUser
     public function memberships(): HasMany
     {
         return $this->hasMany(Membership::class);
+    }
+
+    /**
+     * Agendamentos do usuário como cliente, no salão atual (TenantScope).
+     *
+     * @return HasMany<Appointment, $this>
+     */
+    public function appointments(): HasMany
+    {
+        return $this->hasMany(Appointment::class, 'client_id');
     }
 
     /**

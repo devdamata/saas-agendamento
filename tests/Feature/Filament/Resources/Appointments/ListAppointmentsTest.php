@@ -7,9 +7,11 @@ use App\Enums\PaymentMethod;
 use App\Filament\Resources\Appointments\Pages\ListAppointments;
 use App\Models\Appointment;
 use App\Models\Product;
+use App\Models\Professional;
 use App\Models\Service;
 use App\Models\ServiceProduct;
 use App\Models\Tenant;
+use App\Models\WorkingHour;
 use App\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Testing\TestAction;
@@ -94,6 +96,27 @@ class ListAppointmentsTest extends TestCase
         $this->assertSame('175.000', $product->refresh()->current_stock);
     }
 
+    public function test_remarcar_move_para_o_horario_escolhido(): void
+    {
+        $this->actingAsSalonMember(Tenant::factory()->create(['timezone' => self::TIMEZONE]));
+        $professional = Professional::factory()->create();
+        $service = Service::factory()->create(['duration_minutes' => 60]);
+        $professional->services()->attach($service);
+        WorkingHour::factory()->for($professional)->create(['weekday' => 3, 'starts_at' => '09:00', 'ends_at' => '18:00']);
+        $appointment = Appointment::factory()->for($professional)->for($service)->at($this->at('2026-11-03 10:00'))->create();
+
+        Livewire::test(ListAppointments::class)
+            ->callAction(TestAction::make('reschedule')->table($appointment), [
+                'professional_id' => $professional->id,
+                'date' => '2026-11-04',
+                'starts_at' => $this->at('2026-11-04 15:00')->utc()->toIso8601String(),
+            ])
+            ->assertHasNoFormErrors()
+            ->assertNotified('Agendamento remarcado.');
+
+        $this->assertTrue($appointment->refresh()->starts_at->equalTo($this->at('2026-11-04 15:00')));
+    }
+
     public function test_acoes_de_status_seguem_o_fluxo_permitido(): void
     {
         $this->actingAsSalonMember(Tenant::factory()->create(['timezone' => self::TIMEZONE]));
@@ -104,7 +127,9 @@ class ListAppointmentsTest extends TestCase
             ->assertActionHidden(TestAction::make('confirm')->table($confirmed))
             ->assertActionVisible(TestAction::make('complete')->table($confirmed))
             ->assertActionHidden(TestAction::make('complete')->table($cancelled))
-            ->assertActionHidden(TestAction::make('cancel')->table($cancelled));
+            ->assertActionHidden(TestAction::make('cancel')->table($cancelled))
+            ->assertActionVisible(TestAction::make('reschedule')->table($confirmed))
+            ->assertActionHidden(TestAction::make('reschedule')->table($cancelled));
     }
 
     private function at(string $dateTime): CarbonImmutable
