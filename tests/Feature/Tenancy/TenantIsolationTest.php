@@ -3,7 +3,10 @@
 namespace Tests\Feature\Tenancy;
 
 use App\Enums\MembershipRole;
+use App\Models\Appointment;
 use App\Models\Membership;
+use App\Models\Professional;
+use App\Models\Service;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Tenancy\TenantContext;
@@ -163,6 +166,27 @@ class TenantIsolationTest extends TestCase
         $this->expectException(QueryException::class);
 
         Membership::factory()->for($user)->create();
+    }
+
+    public function test_banco_recusa_agendamento_com_profissional_de_outro_salao(): void
+    {
+        $profissionalDoSalaoB = $this->context->run($this->salaoB, fn () => Professional::factory()->create());
+        $this->context->set($this->salaoA);
+
+        $this->expectException(QueryException::class);
+
+        Appointment::factory()->for($profissionalDoSalaoB)->create();
+    }
+
+    public function test_banco_recusa_ligar_profissional_a_servico_de_outro_salao(): void
+    {
+        $servicoDoSalaoB = $this->context->run($this->salaoB, fn () => Service::factory()->create());
+        $this->context->set($this->salaoA);
+        $profissional = Professional::factory()->create();
+
+        $this->expectException(QueryException::class);
+
+        $profissional->services()->attach($servicoDoSalaoB);
     }
 
     #[DataProvider('slugsInvalidos')]

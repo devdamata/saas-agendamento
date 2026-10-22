@@ -202,13 +202,16 @@ SaaS multi-tenant de agendamento de procedimentos para salões de beleza. Inclui
 - DNS com wildcard `*.app.seudominio.com.br` e certificado SSL curinga.
 
 ## Modelo de dados principal
-- tenants (id, nome, slug, timezone, plano)
+- tenants (id, nome, slug, timezone, plano, cancellation_notice_hours: antecedência para o cliente cancelar/remarcar, padrão 24)
 - users (id, nome, telefone, email, whatsapp_opt_in)
 - memberships (user_id, tenant_id, papel: admin | profissional | cliente)
 - professionals (id, tenant_id, user_id, nome, ativo)
 - services (id, tenant_id, nome, duracao_min, preco, buffer_min)
+- professional_service (tenant_id, professional_id, service_id): quais serviços cada profissional faz
+- working_hours (id, tenant_id, professional_id, weekday 0-6, starts_at, ends_at): jornada semanal no horário local; vários intervalos no dia = pausas
+- time_offs (id, tenant_id, professional_id, starts_at, ends_at, reason): folgas e bloqueios
 - service_products (service_id, product_id, quantidade_usada): ficha técnica
-- appointments (id, tenant_id, client_id, professional_id, service_id, inicio, fim, status, preco_cobrado, criado_por)
+- appointments (id, tenant_id, client_id, professional_id, service_id, inicio, fim, blocked_until = fim + buffer, status, preco_cobrado, criado_por)
 - appointment_events (appointment_id, status_de, status_para, quando, quem)
 - products (id, tenant_id, nome, unidade, estoque_atual, estoque_minimo, custo)
 - stock_movements (id, tenant_id, product_id, tipo, qtd, referencia, criado_em)
@@ -221,7 +224,9 @@ Regras:
 
 ## Regras de negócio
 - Disponibilidade calculada pela duração do serviço + buffer, no timezone do tenant (America/Sao_Paulo por padrão).
-- Conflito de horário bloqueado no banco, dentro de transação com lock no profissional. Nunca confiar só na validação da interface.
+- Conflito de horário bloqueado no banco, dentro de transação com lock no profissional. Nunca confiar só na validação da interface. A constraint `appointments_no_overlap` (EXCLUDE com tstzrange de starts_at a blocked_until) é a garantia final.
+- Tabelas filhas usam FK composta (tenant_id, x_id) para impedir referência entre salões.
+- Datas gravadas em UTC (timestamptz); converter para o fuso do salão só na exibição e na entrada.
 - Cancelamento e remarcação até X horas antes, configurável por salão.
 - Ao marcar um atendimento como concluído, a baixa de estoque é gerada pela ficha técnica (service_products) e a entrada no caixa é criada com o valor cobrado.
 

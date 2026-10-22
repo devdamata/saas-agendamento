@@ -97,6 +97,9 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // O Eloquent grava datas sem fuso, no fuso da aplicação (UTC). A sessão do
+            // Postgres precisa usar o mesmo fuso para as colunas timestamptz ficarem certas.
+            'timezone' => 'UTC',
         ],
 
         'sqlsrv' => [
