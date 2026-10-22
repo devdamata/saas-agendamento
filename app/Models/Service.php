@@ -55,4 +55,14 @@ class Service extends Model
     {
         return $this->hasMany(Appointment::class);
     }
+
+    /**
+     * Ficha técnica do serviço.
+     *
+     * @return HasMany<ServiceProduct, $this>
+     */
+    public function serviceProducts(): HasMany
+    {
+        return $this->hasMany(ServiceProduct::class);
+    }
 }

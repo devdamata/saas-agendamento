@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AppointmentStatus;
+use App\Models\Concerns\AppendOnly;
 use App\Models\Concerns\BelongsToTenant;
 use Database\Factories\AppointmentEventFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -17,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class AppointmentEvent extends Model
 {
     /** @use HasFactory<AppointmentEventFactory> */
-    use BelongsToTenant, HasFactory;
+    use AppendOnly, BelongsToTenant, HasFactory;
 
     public const UPDATED_AT = null;
 

@@ -3,14 +3,17 @@
 namespace App\Filament\Resources\Services;
 
 use App\Filament\Resources\Services\Pages\ManageServices;
+use App\Models\Product;
 use App\Models\Service;
 use BackedEnum;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
@@ -73,6 +76,30 @@ class ServiceResource extends Resource
                     ->multiple()
                     ->preload()
                     ->columnSpanFull(),
+                Repeater::make('serviceProducts')
+                    ->label('Ficha técnica')
+                    ->helperText('Produtos usados em cada atendimento. Ao concluir o atendimento, o estoque baixa automaticamente.')
+                    ->relationship()
+                    ->columns(2)
+                    ->defaultItems(0)
+                    ->addActionLabel('Adicionar produto')
+                    ->columnSpanFull()
+                    ->schema([
+                        Select::make('product_id')
+                            ->label('Produto')
+                            ->options(fn (): array => Product::orderBy('name')->pluck('name', 'id')->all())
+                            ->searchable()
+                            ->required()
+                            ->distinct()
+                            ->disableOptionsWhenSelectedInSiblingRepeaterItems()
+                            ->live(),
+                        TextInput::make('quantity')
+                            ->label('Quantidade por atendimento')
+                            ->numeric()
+                            ->minValue(0.001)
+                            ->required()
+                            ->suffix(fn (Get $get): ?string => blank($get('product_id')) ? null : Product::find($get('product_id'))?->unit->value),
+                    ]),
                 Toggle::make('is_active')
                     ->label('Ativo')
                     ->helperText('Serviços inativos não aparecem para agendamento.')

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\StoresDatesInAppTimezone;
 use Database\Factories\TimeOffFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class TimeOff extends Model
 {
     /** @use HasFactory<TimeOffFactory> */
-    use BelongsToTenant, HasFactory;
+    use BelongsToTenant, HasFactory, StoresDatesInAppTimezone;
 
     /**
      * @return array<string, string>

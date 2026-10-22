@@ -7,10 +7,12 @@ use App\Models\Appointment;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 
 /**
  * Muda o status do agendamento seguindo o fluxo permitido e registra a
- * mudança em appointment_events.
+ * mudança em appointment_events. Para concluir, use o CompleteAppointment,
+ * que também dá baixa no estoque e lança no caixa.
  */
 class ChangeAppointmentStatus
 {
@@ -21,23 +23,13 @@ class ChangeAppointmentStatus
      */
     public function handle(Appointment $appointment, AppointmentStatus $status, ?User $changedBy = null): Appointment
     {
+        if ($status === AppointmentStatus::Completed) {
+            throw new InvalidArgumentException('Use o CompleteAppointment para concluir: ele dá baixa no estoque e lança no caixa.');
+        }
+
         return DB::transaction(function () use ($appointment, $status, $changedBy): Appointment {
             $appointment = Appointment::whereKey($appointment->getKey())->lockForUpdate()->firstOrFail();
-            $previousStatus = $appointment->status;
-
-            if (! $previousStatus->canTransitionTo($status)) {
-                throw ValidationException::withMessages([
-                    'status' => 'Não é possível mudar um agendamento '.mb_strtolower($previousStatus->label()).' para '.mb_strtolower($status->label()).'.',
-                ]);
-            }
-
-            $appointment->update(['status' => $status]);
-
-            $appointment->events()->create([
-                'from_status' => $previousStatus,
-                'to_status' => $status,
-                'user_id' => $changedBy?->getKey(),
-            ]);
+            $appointment->transitionTo($status, $changedBy);
 
             return $appointment;
         });

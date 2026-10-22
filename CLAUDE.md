@@ -220,15 +220,18 @@ SaaS multi-tenant de agendamento de procedimentos para salões de beleza. Inclui
 
 Regras:
 - Estoque e caixa são livros de movimentação. Nunca editar saldo direto: o saldo é calculado ou mantido como cache na mesma transação.
+  - Estoque: só o `RecordStockMovement` altera `products.current_stock` (não é fillable). Saldo pode ficar negativo e entra no alerta de reposição.
+  - `stock_movements`, `cash_entries` e `appointment_events` são append-only (trait `AppendOnly`): correção é um novo lançamento.
 - Status do agendamento: agendado → confirmado → concluído | cancelado | faltou. Toda mudança gera linha em appointment_events.
 
 ## Regras de negócio
 - Disponibilidade calculada pela duração do serviço + buffer, no timezone do tenant (America/Sao_Paulo por padrão).
 - Conflito de horário bloqueado no banco, dentro de transação com lock no profissional. Nunca confiar só na validação da interface. A constraint `appointments_no_overlap` (EXCLUDE com tstzrange de starts_at a blocked_until) é a garantia final.
 - Tabelas filhas usam FK composta (tenant_id, x_id) para impedir referência entre salões.
-- Datas gravadas em UTC (timestamptz); converter para o fuso do salão só na exibição e na entrada.
+- Datas gravadas em UTC (timestamptz); converter para o fuso do salão só na exibição e na entrada. Models com timestamptz usam o trait `StoresDatesInAppTimezone`; em consultas (where) passe datas já com `->utc()`.
 - Cancelamento e remarcação até X horas antes, configurável por salão.
 - Ao marcar um atendimento como concluído, a baixa de estoque é gerada pela ficha técnica (service_products) e a entrada no caixa é criada com o valor cobrado.
+  - Concluir só pelo `CompleteAppointment` (o `ChangeAppointmentStatus` recusa "concluído"). Valor 0 = cortesia, sem lançamento no caixa. Índice único garante uma entrada de caixa por agendamento.
 
 ## Notificações WhatsApp
 - Provedor a definir: API oficial da Meta (Cloud API) ou Z-API / Evolution API / Twilio.

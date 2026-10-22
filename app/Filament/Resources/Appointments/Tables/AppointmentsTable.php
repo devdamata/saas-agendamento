@@ -3,13 +3,17 @@
 namespace App\Filament\Resources\Appointments\Tables;
 
 use App\Actions\Appointments\ChangeAppointmentStatus;
+use App\Actions\Appointments\CompleteAppointment;
 use App\Enums\AppointmentStatus;
+use App\Enums\PaymentMethod;
 use App\Models\Appointment;
 use App\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -75,11 +79,61 @@ class AppointmentsTable
             ->recordActions([
                 ActionGroup::make([
                     self::statusAction('confirm', 'Confirmar', AppointmentStatus::Confirmed, Heroicon::OutlinedCheck),
-                    self::statusAction('complete', 'Concluir', AppointmentStatus::Completed, Heroicon::OutlinedCheckBadge),
+                    self::completeAction(),
                     self::statusAction('noShow', 'Marcar falta', AppointmentStatus::NoShow, Heroicon::OutlinedUserMinus, requiresConfirmation: true),
                     self::statusAction('cancel', 'Cancelar', AppointmentStatus::Cancelled, Heroicon::OutlinedXCircle, requiresConfirmation: true),
                 ])->label('Status')->button(),
             ]);
+    }
+
+    /**
+     * Concluir pede o valor cobrado e a forma de pagamento; a baixa de
+     * estoque e a entrada no caixa são feitas pelo CompleteAppointment.
+     */
+    private static function completeAction(): Action
+    {
+        return Action::make('complete')
+            ->label('Concluir')
+            ->icon(Heroicon::OutlinedCheckBadge)
+            ->color(AppointmentStatus::Completed->getColor())
+            ->authorize('update')
+            ->visible(fn (Appointment $record): bool => $record->status->canTransitionTo(AppointmentStatus::Completed))
+            ->modalHeading('Concluir atendimento')
+            ->modalDescription('Os produtos da ficha técnica saem do estoque e o valor entra no caixa.')
+            ->modalSubmitActionLabel('Concluir')
+            ->fillForm(fn (Appointment $record): array => [
+                'amount' => $record->price,
+                'payment_method' => PaymentMethod::Pix->value,
+            ])
+            ->schema([
+                TextInput::make('amount')
+                    ->label('Valor cobrado')
+                    ->helperText('Use 0 para cortesia; nesse caso nada entra no caixa.')
+                    ->numeric()
+                    ->minValue(0)
+                    ->required()
+                    ->prefix('R$'),
+                Select::make('payment_method')
+                    ->label('Forma de pagamento')
+                    ->options(PaymentMethod::class)
+                    ->required(),
+            ])
+            ->action(function (Appointment $record, array $data): void {
+                try {
+                    app(CompleteAppointment::class)->handle(
+                        $record,
+                        $data['payment_method'] instanceof PaymentMethod ? $data['payment_method'] : PaymentMethod::from($data['payment_method']),
+                        $data['amount'],
+                        auth()->user(),
+                    );
+                } catch (ValidationException $exception) {
+                    Notification::make()->title($exception->getMessage())->danger()->send();
+
+                    return;
+                }
+
+                Notification::make()->title('Atendimento concluído.')->success()->send();
+            });
     }
 
     private static function statusAction(string $name, string $label, AppointmentStatus $status, Heroicon $icon, bool $requiresConfirmation = false): Action

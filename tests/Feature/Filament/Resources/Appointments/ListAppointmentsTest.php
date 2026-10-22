@@ -3,8 +3,12 @@
 namespace Tests\Feature\Filament\Resources\Appointments;
 
 use App\Enums\AppointmentStatus;
+use App\Enums\PaymentMethod;
 use App\Filament\Resources\Appointments\Pages\ListAppointments;
 use App\Models\Appointment;
+use App\Models\Product;
+use App\Models\Service;
+use App\Models\ServiceProduct;
 use App\Models\Tenant;
 use App\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
@@ -66,6 +70,28 @@ class ListAppointmentsTest extends TestCase
             'to_status' => AppointmentStatus::Confirmed->value,
             'user_id' => $staff->id,
         ]);
+    }
+
+    public function test_concluir_registra_pagamento_e_baixa_o_estoque(): void
+    {
+        $this->actingAsSalonMember(Tenant::factory()->create(['timezone' => self::TIMEZONE]));
+        $product = Product::factory()->withStock(200)->create();
+        $service = Service::factory()->create();
+        ServiceProduct::factory()->for($service)->for($product)->create(['quantity' => 25]);
+        $appointment = Appointment::factory()->for($service)->at($this->at('2026-11-03 10:00'))->create(['price' => '90.00']);
+
+        Livewire::test(ListAppointments::class)
+            ->callAction(TestAction::make('complete')->table($appointment), [
+                'amount' => '80',
+                'payment_method' => PaymentMethod::DebitCard->value,
+            ])
+            ->assertHasNoFormErrors()
+            ->assertNotified('Atendimento concluído.');
+
+        $this->assertSame(AppointmentStatus::Completed, $appointment->refresh()->status);
+        $this->assertSame('80.00', $appointment->cashEntry->amount);
+        $this->assertSame(PaymentMethod::DebitCard, $appointment->cashEntry->payment_method);
+        $this->assertSame('175.000', $product->refresh()->current_stock);
     }
 
     public function test_acoes_de_status_seguem_o_fluxo_permitido(): void

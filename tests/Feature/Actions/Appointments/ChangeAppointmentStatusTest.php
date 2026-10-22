@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -50,10 +51,8 @@ class ChangeAppointmentStatusTest extends TestCase
     {
         return [
             'agendado → confirmado' => [AppointmentStatus::Scheduled, AppointmentStatus::Confirmed],
-            'agendado → concluído' => [AppointmentStatus::Scheduled, AppointmentStatus::Completed],
             'agendado → cancelado' => [AppointmentStatus::Scheduled, AppointmentStatus::Cancelled],
             'agendado → faltou' => [AppointmentStatus::Scheduled, AppointmentStatus::NoShow],
-            'confirmado → concluído' => [AppointmentStatus::Confirmed, AppointmentStatus::Completed],
             'confirmado → cancelado' => [AppointmentStatus::Confirmed, AppointmentStatus::Cancelled],
             'confirmado → faltou' => [AppointmentStatus::Confirmed, AppointmentStatus::NoShow],
         ];
@@ -85,8 +84,17 @@ class ChangeAppointmentStatusTest extends TestCase
             'agendado → agendado' => [AppointmentStatus::Scheduled, AppointmentStatus::Scheduled],
             'concluído → cancelado' => [AppointmentStatus::Completed, AppointmentStatus::Cancelled],
             'cancelado → confirmado' => [AppointmentStatus::Cancelled, AppointmentStatus::Confirmed],
-            'faltou → concluído' => [AppointmentStatus::NoShow, AppointmentStatus::Completed],
+            'faltou → cancelado' => [AppointmentStatus::NoShow, AppointmentStatus::Cancelled],
         ];
+    }
+
+    public function test_concluir_exige_o_complete_appointment(): void
+    {
+        $appointment = Appointment::factory()->status(AppointmentStatus::Confirmed)->create();
+
+        $this->expectException(InvalidArgumentException::class);
+
+        app(ChangeAppointmentStatus::class)->handle($appointment, AppointmentStatus::Completed);
     }
 
     public function test_mensagem_de_erro_explica_a_transicao_recusada(): void
