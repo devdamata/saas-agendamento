@@ -1,11 +1,11 @@
 <?php
 
 use App\Http\Middleware\IdentifyTenant;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Middleware\SubstituteBindings;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -18,10 +18,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant' => IdentifyTenant::class,
         ]);
 
-        // O tenant precisa estar definido antes do route model binding,
-        // para que os models da URL já sejam buscados com o TenantScope.
+        // O tenant precisa estar definido antes da autenticação (que checa o
+        // acesso ao salão e gera URLs no subdomínio) e, por consequência, antes
+        // do route model binding, para que os models da URL já sejam buscados
+        // com o TenantScope.
         $middleware->prependToPriorityList(
-            before: SubstituteBindings::class,
+            before: AuthenticatesRequests::class,
             prepend: IdentifyTenant::class,
         );
     })

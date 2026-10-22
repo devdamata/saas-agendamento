@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['name', 'duration_minutes', 'buffer_minutes', 'price', 'is_active'])]
 class Service extends Model
@@ -44,7 +45,14 @@ class Service extends Model
      */
     public function professionals(): BelongsToMany
     {
-        return $this->belongsToMany(Professional::class)
-            ->withPivotValue('tenant_id', $this->tenant_id);
+        return $this->belongsToManyInTenant(Professional::class);
+    }
+
+    /**
+     * @return HasMany<Appointment, $this>
+     */
+    public function appointments(): HasMany
+    {
+        return $this->hasMany(Appointment::class);
     }
 }

@@ -53,8 +53,7 @@ class Professional extends Model
      */
     public function services(): BelongsToMany
     {
-        return $this->belongsToMany(Service::class)
-            ->withPivotValue('tenant_id', $this->tenant_id);
+        return $this->belongsToManyInTenant(Service::class);
     }
 
     /**

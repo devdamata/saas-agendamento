@@ -2,7 +2,10 @@
 
 namespace App\Enums;
 
-enum AppointmentStatus: string
+use Filament\Support\Contracts\HasColor;
+use Filament\Support\Contracts\HasLabel;
+
+enum AppointmentStatus: string implements HasColor, HasLabel
 {
     case Scheduled = 'agendado';
     case Confirmed = 'confirmado';
@@ -18,6 +21,22 @@ enum AppointmentStatus: string
             self::Completed => 'Concluído',
             self::Cancelled => 'Cancelado',
             self::NoShow => 'Faltou',
+        };
+    }
+
+    public function getLabel(): string
+    {
+        return $this->label();
+    }
+
+    public function getColor(): string
+    {
+        return match ($this) {
+            self::Scheduled => 'gray',
+            self::Confirmed => 'info',
+            self::Completed => 'success',
+            self::Cancelled => 'danger',
+            self::NoShow => 'warning',
         };
     }
 

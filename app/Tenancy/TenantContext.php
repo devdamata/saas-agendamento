@@ -3,12 +3,16 @@
 namespace App\Tenancy;
 
 use App\Models\Tenant;
+use Illuminate\Support\Facades\URL;
 
 /**
  * Guarda o tenant (salão) da requisição ou job atual.
  *
  * Registrado como "scoped" no container, então é zerado a cada
  * requisição e a cada job da fila.
+ *
+ * Também define o parâmetro {tenant} padrão das URLs, para que route()
+ * gere links no subdomínio do salão atual.
  */
 class TenantContext
 {
@@ -17,6 +21,8 @@ class TenantContext
     public function set(?Tenant $tenant): void
     {
         $this->tenant = $tenant;
+
+        URL::defaults(['tenant' => $tenant?->slug]);
     }
 
     public function get(): ?Tenant
@@ -36,7 +42,7 @@ class TenantContext
 
     public function forget(): void
     {
-        $this->tenant = null;
+        $this->set(null);
     }
 
     /**
@@ -51,12 +57,12 @@ class TenantContext
     public function run(Tenant $tenant, callable $callback): mixed
     {
         $previous = $this->tenant;
-        $this->tenant = $tenant;
+        $this->set($tenant);
 
         try {
             return $callback($tenant);
         } finally {
-            $this->tenant = $previous;
+            $this->set($previous);
         }
     }
 }

@@ -3,7 +3,10 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\MembershipRole;
 use Database\Factories\UserFactory;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,7 +17,7 @@ use Illuminate\Notifications\Notifiable;
 
 #[Fillable(['name', 'phone', 'email', 'password', 'whatsapp_opt_in', 'whatsapp_opt_in_at'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
@@ -32,6 +35,31 @@ class User extends Authenticatable
             'whatsapp_opt_in' => 'boolean',
             'whatsapp_opt_in_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Normaliza o telefone para E.164. Sem "+" na frente, números com 10 ou
+     * 11 dígitos são tratados como brasileiros (DDD + número).
+     */
+    public static function normalizePhone(string $phone): string
+    {
+        $digits = preg_replace('/\D/', '', $phone);
+        $isInternational = str_starts_with(trim($phone), '+');
+
+        return ! $isInternational && in_array(strlen($digits), [10, 11], true) ? "+55{$digits}" : "+{$digits}";
+    }
+
+    /**
+     * Painel do salão: só administradores e profissionais do salão atual.
+     */
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return $this->hasRoleInCurrentTenant(MembershipRole::Admin, MembershipRole::Professional);
+    }
+
+    public function hasRoleInCurrentTenant(MembershipRole ...$roles): bool
+    {
+        return $this->memberships()->whereIn('role', $roles)->exists();
     }
 
     /**

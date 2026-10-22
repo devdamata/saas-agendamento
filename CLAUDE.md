@@ -239,7 +239,7 @@ Regras:
 
 ## Áreas do sistema
 - Área do cliente (mobile first): entrar por telefone com código, escolher serviço, profissional e horário, ver próximos e histórico, cancelar ou remarcar.
-- Painel do salão (Filament): início com agenda do dia e totais, agenda por dia e profissional, financeiro com fluxo de caixa e exportação CSV, estoque com alertas, clientes com histórico.
+- Painel do salão (Filament 5, em `{slug}.{domínio}/painel`, acesso para admin e profissional; cadastros só admin): início com agenda do dia e totais, agenda por dia e profissional, financeiro com fluxo de caixa e exportação CSV, estoque com alertas, clientes com histórico.
 
 ## Convenções de desenvolvimento
 - Toda tabela de negócio tem `tenant_id` e índice nele.

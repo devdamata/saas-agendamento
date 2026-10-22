@@ -8,6 +8,7 @@ use App\Tenancy\TenantContext;
 use App\Tenancy\TenantNotResolvedException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use LogicException;
 
 /**
@@ -56,5 +57,23 @@ trait BelongsToTenant
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
+    }
+
+    /**
+     * N:N entre models do mesmo salão, com tenant_id na tabela pivot (alvo
+     * das FKs compostas). O tenant vem do registro ou, num model ainda não
+     * salvo (eager loading, formulários), do tenant atual.
+     *
+     * @template TRelated of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  class-string<TRelated>  $related
+     * @return BelongsToMany<TRelated, $this>
+     */
+    protected function belongsToManyInTenant(string $related, ?string $table = null): BelongsToMany
+    {
+        $relation = $this->belongsToMany($related, $table);
+        $tenantId = $this->tenant_id ?? app(TenantContext::class)->id();
+
+        return $tenantId === null ? $relation : $relation->withPivotValue('tenant_id', $tenantId);
     }
 }
