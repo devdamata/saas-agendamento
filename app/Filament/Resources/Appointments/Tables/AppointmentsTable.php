@@ -57,7 +57,7 @@ class AppointmentsTable
                             ->label('Dia')
                             ->native(false)
                             ->displayFormat('d/m/Y')
-                            ->default(fn (): string => CarbonImmutable::now(self::timezone())->toDateString()),
+                            ->default(fn (): string => app(TenantContext::class)->now()->toDateString()),
                     ])
                     ->query(fn (Builder $query, array $data): Builder => $query->when(
                         $data['date'] ?? null,
@@ -77,13 +77,22 @@ class AppointmentsTable
                     ->options(AppointmentStatus::class),
             ])
             ->recordActions([
-                ActionGroup::make([
-                    self::statusAction('confirm', 'Confirmar', AppointmentStatus::Confirmed, Heroicon::OutlinedCheck),
-                    self::completeAction(),
-                    self::statusAction('noShow', 'Marcar falta', AppointmentStatus::NoShow, Heroicon::OutlinedUserMinus, requiresConfirmation: true),
-                    self::statusAction('cancel', 'Cancelar', AppointmentStatus::Cancelled, Heroicon::OutlinedXCircle, requiresConfirmation: true),
-                ])->label('Status')->button(),
+                self::statusActions(),
             ]);
+    }
+
+    /**
+     * Ações de status (confirmar, concluir, falta, cancelar), usadas na
+     * agenda e na agenda de hoje da tela inicial.
+     */
+    public static function statusActions(): ActionGroup
+    {
+        return ActionGroup::make([
+            self::statusAction('confirm', 'Confirmar', AppointmentStatus::Confirmed, Heroicon::OutlinedCheck),
+            self::completeAction(),
+            self::statusAction('noShow', 'Marcar falta', AppointmentStatus::NoShow, Heroicon::OutlinedUserMinus, requiresConfirmation: true),
+            self::statusAction('cancel', 'Cancelar', AppointmentStatus::Cancelled, Heroicon::OutlinedXCircle, requiresConfirmation: true),
+        ])->label('Status')->button();
     }
 
     /**

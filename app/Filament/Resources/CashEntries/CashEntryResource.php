@@ -195,6 +195,6 @@ class CashEntryResource extends Resource
 
     private static function today(): CarbonImmutable
     {
-        return CarbonImmutable::now(app(TenantContext::class)->get()->timezone);
+        return app(TenantContext::class)->now();
     }
 }

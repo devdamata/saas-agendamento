@@ -3,6 +3,7 @@
 namespace App\Tenancy;
 
 use App\Models\Tenant;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\URL;
 
 /**
@@ -33,6 +34,14 @@ class TenantContext
     public function id(): ?int
     {
         return $this->tenant?->getKey();
+    }
+
+    /**
+     * Agora, no fuso do salão atual.
+     */
+    public function now(): CarbonImmutable
+    {
+        return CarbonImmutable::now($this->tenant->timezone);
     }
 
     public function check(): bool

@@ -166,6 +166,6 @@ class AppointmentForm
 
     private static function today(): string
     {
-        return CarbonImmutable::now(app(TenantContext::class)->get()->timezone)->toDateString();
+        return app(TenantContext::class)->now()->toDateString();
     }
 }
